@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<title>Stream tím</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070B12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stream tím">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  html, body { margin: 0; height: 100%; background: #070B12; overflow: hidden; }
+  body { box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  iframe { display: block; width: 100%; height: 100%; border: 0; background: #070B12; }
+  .msg { color: #E6EDF5; font: 15px/1.5 system-ui, sans-serif; padding: 32px 24px; }
+</style>
+</head>
+<body>
+<script>
+  // ▼▼▼ SEM vlož adresu webu z Apps Scriptu (končí na /exec) ▼▼▼
+  const APP_URL = 'SEM_VLOZ_ADRESU';
+  // ▲▲▲
+
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(APP_URL)) {
+    document.body.innerHTML = '<div class="msg">Chýba adresa webu. Otvor <b>index.html</b> na GitHube a vlož ju do riadku APP_URL.</div>';
+  } else {
+    const f = document.createElement('iframe');
+    f.src = APP_URL;
+    f.title = 'Stream tím';
+    f.allow = 'fullscreen; clipboard-write';
+    document.body.appendChild(f);
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
