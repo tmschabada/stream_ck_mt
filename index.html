@@ -13,26 +13,76 @@
 <link rel="icon" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-  html, body { margin: 0; height: 100%; background: #070B12; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: #070B12; overflow: hidden; color: #E6EDF5; font: 15px/1.5 system-ui, -apple-system, sans-serif; }
   body { box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   iframe { display: block; width: 100%; height: 100%; border: 0; background: #070B12; }
-  .msg { color: #E6EDF5; font: 15px/1.5 system-ui, sans-serif; padding: 32px 24px; }
+  .page { max-width: 440px; margin: 0 auto; padding: 40px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .page img { width: 64px; height: 64px; border-radius: 16px; }
+  h1 { font-size: 24px; line-height: 1.2; margin: 0; }
+  p { margin: 0; color: #9FB0C4; }
+  .btn { display: block; text-align: center; text-decoration: none; font-weight: 700; font-size: 16px; padding: 14px 16px; border-radius: 12px; border: 1px solid #1E4A6B; color: #38BDF8; background: transparent; cursor: pointer; }
+  .btn.pri { background: #1EA7E6; border-color: #1EA7E6; color: #04121D; }
+  .steps { background: #0D1420; border: 1px solid #1A2433; border-radius: 12px; padding: 14px 16px; color: #C9D4E1; }
+  .steps b { color: #fff; }
+  .bar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); background: #0D1420; border: 1px solid #1E4A6B; border-radius: 14px; padding: 14px; display: none; flex-direction: column; gap: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+  .bar.on { display: flex; }
+  .bar .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bar .btn { padding: 11px 10px; font-size: 14px; }
+  .small { font-size: 13px; }
 </style>
 </head>
 <body>
 <script>
-  // ▼▼▼ SEM vlož adresu webu z Apps Scriptu (končí na /exec) ▼▼▼
+  // ▼▼▼ Adresa webu z Apps Scriptu (končí na /exec) ▼▼▼
   const APP_URL = 'https://script.google.com/macros/s/AKfycbyWHnqwqWDqyBwbMVyAWOt3K0kVpdP71zzeTcA5pw53-QR_sIwCQ2BSxvL_ATRT0o83/exec';
   // ▲▲▲
 
-  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(APP_URL)) {
-    document.body.innerHTML = '<div class="msg">Chýba adresa webu. Otvor <b>index.html</b> na GitHube a vlož ju do riadku APP_URL.</div>';
-  } else {
+  const ua = navigator.userAgent || '';
+  const inApp = /FBAN|FBAV|FB_IAB|FBIOS|Messenger|Orca-Android|Instagram|Line\/|Snapchat|TikTok|WhatsApp|; wv\)/i.test(ua);
+  const android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua);
+  const here = location.href.split('#')[0];
+
+  function inAppPage() {
+    const chrome = 'intent://' + here.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+    document.body.innerHTML = '<div class="page"><img src="icon-192.png" alt="">' +
+      '<h1>Otvor appku v ' + (ios ? 'Safari' : 'Chrome') + '</h1>' +
+      '<p>Si v zabudovanom prehliadači (napr. Messenger). V ňom sa prihlásenie do appky nenačíta správne.</p>' +
+      (android ? '<a class="btn pri" href="' + chrome + '">Otvoriť v Chrome</a>' : '') +
+      '<div class="steps">' + (ios ? 'Ťukni na <b>⋯</b> alebo na ikonu kompasu a zvoľ <b>Otvoriť v Safari</b>.' : 'Alebo ťukni hore na <b>⋮</b> a zvoľ <b>Otvoriť v Chrome / v prehliadači</b>.') +
+      '<br>Potom si appku pridaj na plochu.</div>' +
+      '<button class="btn" id="cp">Skopírovať odkaz</button>' +
+      '<a class="btn" href="' + APP_URL + '" target="_top">Otvoriť appku aj tak</a></div>';
+    document.getElementById('cp').onclick = function () {
+      const done = () => { this.textContent = 'Skopírované ✓ – vlož ho do prehliadača'; };
+      if (navigator.clipboard) navigator.clipboard.writeText(here).then(done, () => prompt('Skopíruj odkaz:', here)); else prompt('Skopíruj odkaz:', here);
+    };
+  }
+
+  function appFrame() {
     const f = document.createElement('iframe');
-    f.src = APP_URL;
-    f.title = 'Stream tím';
-    f.allow = 'fullscreen; clipboard-write';
+    f.src = APP_URL; f.title = 'Stream tím'; f.allow = 'fullscreen; clipboard-write';
     document.body.appendChild(f);
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = '<b>Appka sa nenačítala?</b><span class="small" style="color:#9FB0C4">Niektoré prehliadače vnorenú appku blokujú. Otvor ju priamo – funguje rovnako.</span>' +
+      '<div class="row"><a class="btn pri" href="' + APP_URL + '" target="_top">Otvoriť priamo</a><button class="btn" id="rl">Skúsiť znova</button></div>' +
+      '<button class="btn small" id="hd" style="border:none;padding:4px">Zavrieť</button>';
+    document.body.appendChild(bar);
+    let ok = false;
+    const hide = () => { ok = true; bar.classList.remove('on'); };
+    window.addEventListener('message', e => { if (e.data && e.data.stream === 'ok') hide(); });
+    window.addEventListener('blur', () => setTimeout(() => { if (document.activeElement === f) hide(); }, 0)); // ťuknutie do appky = funguje
+    setTimeout(() => { if (!ok) bar.classList.add('on'); }, 12000);
+    bar.querySelector('#rl').onclick = () => location.reload();
+    bar.querySelector('#hd').onclick = hide;
+  }
+
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(APP_URL)) {
+    document.body.innerHTML = '<div class="page">Chýba adresa webu. Otvor <b>index.html</b> na GitHube a vlož ju do riadku APP_URL.</div>';
+  } else if (inApp && !/[?&]app=1/.test(location.search)) {
+    inAppPage();
+  } else {
+    appFrame();
   }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
