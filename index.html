@@ -12,6 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="firebase-config.js"></script>
 <style>
   html, body { margin: 0; height: 100%; background: #070B12; overflow: hidden; color: #E6EDF5; font: 15px/1.5 system-ui, -apple-system, sans-serif; }
   body { box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
@@ -29,6 +30,7 @@
   .bar .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .bar .btn { padding: 11px 10px; font-size: 14px; }
   .small { font-size: 13px; }
+  .bar.push { border-color: #1EA7E6; }
 </style>
 </head>
 <body>
@@ -70,11 +72,67 @@
     document.body.appendChild(bar);
     let ok = false;
     const hide = () => { ok = true; bar.classList.remove('on'); };
-    window.addEventListener('message', e => { if (e.data && e.data.stream === 'ok') hide(); });
+    window.addEventListener('message', e => { if (e.data && (e.data.stream === 'ok' || e.data.stream === 'ready') && fromApp(e)) hide(); });
+    pushBridge();
     window.addEventListener('blur', () => setTimeout(() => { if (document.activeElement === f) hide(); }, 0)); // ťuknutie do appky = funguje
     setTimeout(() => { if (!ok) bar.classList.add('on'); }, 12000);
     bar.querySelector('#rl').onclick = () => location.reload();
     bar.querySelector('#hd').onclick = hide;
+  }
+
+  // ---------- push notifikácie (Firebase) ----------
+  const fromApp = (e) => /(^https:\/\/script\.google\.com$)|(\.googleusercontent\.com$)/.test(e.origin);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  function pushSupported() { return !!self.FIREBASE_OK && 'serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window; }
+  function loadScript(src) { return new Promise((ok, err) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => err(new Error('Nepodarilo sa načítať ' + src)); document.head.appendChild(s); }); }
+  let fbP = null;
+  function firebaseReady() {
+    if (!fbP) fbP = loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js')
+      .then(() => loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js'))
+      .then(async () => {
+        if (!firebase.apps.length) firebase.initializeApp(self.FIREBASE_CONFIG);
+        const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+        const m = firebase.messaging();
+        m.onMessage(p => { const n = p.notification || {}; reg.showNotification(n.title || 'Stream tím', { body: n.body || '', icon: 'icon-192.png', tag: (p.data && p.data.type) || 'stream', data: { link: location.href } }); });
+        return { m, reg };
+      });
+    return fbP;
+  }
+  async function fcmToken() { const { m, reg } = await firebaseReady(); return m.getToken({ vapidKey: self.FIREBASE_VAPID, serviceWorkerRegistration: reg }); }
+  function deviceName() { return (ios ? 'iPhone' : android ? 'Android' : 'Počítač') + (standalone ? ' · appka' : ' · prehliadač'); }
+  function pushBridge() {
+    let appWin = null;
+    const send = (msg) => { try { appWin && appWin.postMessage(msg, '*'); } catch (e) { /* nevadí */ } };
+    const sendToken = () => fcmToken().then(t => t && send({ stream: 'push-token', token: t, device: deviceName() }))
+      .catch(err => { console.warn(err); send({ stream: 'push-denied', error: String(err && err.message || err) }); });
+    const panel = document.createElement('div');
+    panel.className = 'bar push';
+    document.body.appendChild(panel);
+    function showPanel() {
+      panel.innerHTML = '<b>Povoliť notifikácie?</b><span class="small" style="color:#9FB0C4">Telefón sa ťa teraz opýta na povolenie – ťukni na <b>Povoliť</b>.</span>' +
+        '<div class="row"><button class="btn pri" id="pyes">Povoliť notifikácie</button><button class="btn" id="pno">Teraz nie</button></div>';
+      panel.classList.add('on');
+      panel.querySelector('#pno').onclick = () => { panel.classList.remove('on'); send({ stream: 'push-denied' }); };
+      panel.querySelector('#pyes').onclick = () => {
+        panel.classList.remove('on');
+        Notification.requestPermission().then(p => p === 'granted' ? sendToken() : send({ stream: 'push-denied' }));
+      };
+    }
+    window.addEventListener('message', e => {
+      const d = e.data || {};
+      if (!fromApp(e) || typeof d !== 'object') return;
+      if (d.stream === 'ok' || d.stream === 'ready') {
+        appWin = e.source;
+        send({ stream: 'wrap', push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'unsupported', ios, standalone });
+        if (d.stream === 'ready' && pushSupported() && Notification.permission === 'granted') sendToken();
+      } else if (d.stream === 'push-enable') {
+        appWin = e.source;
+        if (!pushSupported()) return send({ stream: 'push-denied' });
+        if (Notification.permission === 'granted') sendToken(); else showPanel();
+      } else if (d.stream === 'push-off' && pushSupported()) {
+        firebaseReady().then(({ m }) => m.deleteToken()).catch(() => {});
+      }
+    });
   }
 
   if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(APP_URL)) {
@@ -84,7 +142,7 @@
   } else {
     appFrame();
   }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});  // aj pre inštaláciu na plochu
 </script>
 </body>
 </html>
