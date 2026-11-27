@@ -121,9 +121,14 @@
     window.addEventListener('message', e => {
       const d = e.data || {};
       if (!fromApp(e) || typeof d !== 'object') return;
+      if (d.stream === 'tok') {
+        try { d.token ? localStorage.setItem('st_token', String(d.token)) : localStorage.removeItem('st_token'); } catch (err) { /* nevadí */ }
+        return;
+      }
       if (d.stream === 'ok' || d.stream === 'ready') {
         appWin = e.source;
-        send({ stream: 'wrap', push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'unsupported', ios, standalone });
+        let tok = ''; try { tok = localStorage.getItem('st_token') || ''; } catch (err) { /* nevadí */ }
+        try { e.source.postMessage({ stream: 'wrap', push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'unsupported', ios, standalone, token: tok }, e.origin); } catch (err) { /* nevadí */ }
         if (d.stream === 'ready' && pushSupported() && Notification.permission === 'granted') sendToken();
       } else if (d.stream === 'push-enable') {
         appWin = e.source;
